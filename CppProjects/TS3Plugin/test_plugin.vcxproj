@@ -100,7 +100,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;TEST_PLUGIN_EXPORTS;WINDOWS;WIN32_LEAN_AND_MEAN;NOFMOD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <PrecompiledHeader>
       </PrecompiledHeader>
@@ -146,9 +146,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="plugin.c" />
+    <ClCompile Include="hidapi\hid.c" />
+    <ClCompile Include="plugin.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="hidapi\hidapi_cfgmgr32.h" />
+    <ClInclude Include="hidapi\hidapi_hidclass.h" />
+    <ClInclude Include="hidapi\hidapi_hidpi.h" />
+    <ClInclude Include="hidapi\hidapi_hidsdi.h" />
+    <ClInclude Include="hidapi\hidapi_winapi.h" />
     <ClInclude Include="include\plugin_definitions.h" />
     <ClInclude Include="include\teamlog\logtypes.h" />
     <ClInclude Include="include\teamspeak\clientlib_publicdefinitions.h" />

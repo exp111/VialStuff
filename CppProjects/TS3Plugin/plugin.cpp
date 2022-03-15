@@ -19,9 +19,21 @@
 #include "teamspeak/public_rare_definitions.h"
 #include "teamspeak/clientlib_publicdefinitions.h"
 #include "ts3_functions.h"
+#include <wtypes.h>
+#include "hidapi/hidapi.h"
 #include "plugin.h"
+#include <vector>
+#include <string>
 
 static struct TS3Functions ts3Functions;
+
+// vial stuff
+#define MSG_SIZE 33
+#define CMD_VIA_LIGHTING_SET_VALUE 0x07
+#define CMD_VIA_LIGHTING_GET_VALUE 0x08
+#define QMK_RGBLIGHT_EFFECT 0x81
+static hid_device* device;
+static int savedVialEffect = 0;
 
 #ifdef _WIN32
 #define _strcpy(dest, destSize, src) strcpy_s(dest, destSize, src)
@@ -105,27 +117,125 @@ void ts3plugin_setFunctionPointers(const struct TS3Functions funcs) {
     ts3Functions = funcs;
 }
 
+//TODO: add retries?
+int hid_send(hid_device* handle, unsigned char* buf)
+{
+	int res = hid_write(handle, buf, MSG_SIZE);
+	if (res < 0)
+	{
+		return res;
+	}
+	res = hid_read(handle, buf, MSG_SIZE);
+	if (res < 0)
+	{
+		return res;
+	}
+	return 0;
+}
+
+static void InitVial()
+{
+	// init
+	int res = hid_init();
+
+	// find devices
+	const wchar_t* VialSerialNumberMagic = L"vial:f64c2b3c";
+	std::vector<hid_device_info> devices = std::vector<hid_device_info>();
+	hid_device_info* devs, * cur_dev;
+	devs = hid_enumerate(0x0, 0x0);
+	if (devs == nullptr)
+	{
+		ts3Functions.logMessage("no hid devices.", LogLevel_DEBUG, PLUGIN_NAME, 0);
+		return;
+	}
+	cur_dev = devs;
+	do
+	{
+		//TODO: probably log stuff?
+		// check if device serial number contains the magic
+		if (std::wstring(cur_dev->serial_number).find(VialSerialNumberMagic) == std::wstring::npos)
+			continue;
+
+		// now check for the rawhid params
+		if (cur_dev->usage_page != 0xFF60 || cur_dev->usage != 0x61)
+			continue;
+
+		hid_device* handle = hid_open_path(cur_dev->path);
+		if (!handle)
+			continue;
+		//TODO: check extra stuff
+
+		// copy the content over, cause cur_dev gets freed after the loop
+		hid_device_info copy = hid_device_info();
+		char buf[255];
+		strncpy_s(buf, sizeof(buf), cur_dev->path, strlen(cur_dev->path));
+		copy.path = buf;
+		wchar_t wbuf[255];
+		wcsncpy_s(wbuf, _countof(wbuf), cur_dev->manufacturer_string, wcslen(cur_dev->manufacturer_string));
+		copy.manufacturer_string = wbuf;
+
+		devices.push_back(copy);
+	} while (cur_dev = cur_dev->next);
+	hid_free_enumeration(devs);
+
+	if (devices.size() == 0)
+	{
+		ts3Functions.logMessage("no vial devices found", LogLevel_DEBUG, PLUGIN_NAME, 0);
+		return;
+	}
+
+	hid_device_info selected = devices[0]; //TODO: make kb selectable, currently chooses first one
+	char buf[255];
+	sprintf_s(buf, "manufacturer: %ls\n", selected.manufacturer_string);
+	ts3Functions.logMessage(buf, LogLevel_DEBUG, PLUGIN_NAME, 0);
+	device = hid_open_path(selected.path);
+
+	// get current effect
+	unsigned char msg[MSG_SIZE]; // 32 + 1 (for the report id)
+	memset(msg, 0x00, sizeof(msg));
+	msg[0] = 0x0; // report id
+	msg[1] = CMD_VIA_LIGHTING_GET_VALUE;
+	msg[2] = QMK_RGBLIGHT_EFFECT;
+	res = hid_send(device, msg);
+	if (res < 0)
+	{
+		const wchar_t* err = hid_error(device);
+		sprintf_s(buf, "error while getting lighting value: %ls\n", err);
+		ts3Functions.logMessage(buf, LogLevel_DEBUG, PLUGIN_NAME, 0);
+	}
+
+	savedVialEffect = msg[2];
+	const wchar_t* err = hid_error(device);
+	sprintf_s(buf, "saved effect: %i\n", savedVialEffect);
+	ts3Functions.logMessage(buf, LogLevel_DEBUG, PLUGIN_NAME, 0);
+}
+
+static void sendVialSet(int cmd, int prop, int val)
+{
+	unsigned char msg[MSG_SIZE];
+	memset(msg, 0x0, sizeof(msg));
+	//[0] = 0x0 => report id
+	msg[1] = cmd;
+	msg[2] = prop;
+	msg[3] = val;
+	int res = hid_send(device, msg);
+	if (res < 0)
+	{
+		const wchar_t* err = hid_error(device);
+		char buf[255];
+		sprintf_s(buf, "error during sendVialSet: %ls\n", err);
+		ts3Functions.logMessage(buf, LogLevel_DEBUG, PLUGIN_NAME, 0);
+	}
+}
+
 /*
  * Custom code called right after loading the plugin. Returns 0 on success, 1 on failure.
  * If the function returns 1 on failure, the plugin will be unloaded again.
  */
 int ts3plugin_init() {
-    char appPath[PATH_BUFSIZE];
-    char resourcesPath[PATH_BUFSIZE];
-    char configPath[PATH_BUFSIZE];
-	char pluginPath[PATH_BUFSIZE];
-
-    /* Your plugin init code here */
-    printf("PLUGIN: init\n");
-
-    /* Example on how to query application, resources and configuration paths from client */
-    /* Note: Console client returns empty string for app and resources path */
-    ts3Functions.getAppPath(appPath, PATH_BUFSIZE);
-    ts3Functions.getResourcesPath(resourcesPath, PATH_BUFSIZE);
-    ts3Functions.getConfigPath(configPath, PATH_BUFSIZE);
-	ts3Functions.getPluginPath(pluginPath, PATH_BUFSIZE, pluginID);
-
-	//TODO: init lighting
+	// init vial stuff
+	InitVial();
+	
 
     return 0;  /* 0 = success, 1 = failure, -2 = failure but client will not show a "failed to load" warning */
 	/* -2 is a very special case and should only be used if a plugin displays a dialog (e.g. overlay) asking the user to disable
@@ -135,10 +245,11 @@ int ts3plugin_init() {
 
 /* Custom code called right before the plugin is unloaded */
 void ts3plugin_shutdown() {
-    /* Your plugin cleanup code here */
-    printf("PLUGIN: shutdown\n");
-
-	//TODO: reset lighting
+	// reset lighting
+	sendVialSet(CMD_VIA_LIGHTING_SET_VALUE, QMK_RGBLIGHT_EFFECT, savedVialEffect);
+	//TODO: check return codes
+	hid_close(device);
+	hid_exit();
 
 	/* Free pluginID if we registered it */
 	if(pluginID) {
@@ -178,7 +289,6 @@ void ts3plugin_registerPluginID(const char* id) {
 	const size_t sz = strlen(id) + 1;
 	pluginID = (char*)malloc(sz * sizeof(char));
 	strcpy_s(pluginID, sz, id);  /* The id buffer will invalidate after exiting this function */
-	printf("PLUGIN: registerPluginID: %s\n", pluginID);
 }
 
 /* Plugin command keyword. Return NULL or "" if not used. */
@@ -251,14 +361,22 @@ void ts3plugin_onUpdateClientEvent(uint64 serverConnectionHandlerID, anyID clien
 		return;
 
 	int muted = 0;
-	result = ts3Functions.getClientSelfVariableAsInt(serverConnectionHandlerID, CLIENT_INPUT_MUTED, &result);
+	result = ts3Functions.getClientSelfVariableAsInt(serverConnectionHandlerID, CLIENT_INPUT_MUTED, &muted);
 	if (result != ERROR_ok)
 	{
 		ts3Functions.printMessageToCurrentTab("getSelfvariable fail");
 		return;
 	}
 
-	// 
+	// change the lighting according to the mute status
+	if (muted)
+	{
+		sendVialSet(CMD_VIA_LIGHTING_SET_VALUE, QMK_RGBLIGHT_EFFECT, 0);
+	}
+	else
+	{
+		sendVialSet(CMD_VIA_LIGHTING_SET_VALUE, QMK_RGBLIGHT_EFFECT, savedVialEffect);
+	}
 }
 
 void ts3plugin_onClientMoveEvent(uint64 serverConnectionHandlerID, anyID clientID, uint64 oldChannelID, uint64 newChannelID, int visibility, const char* moveMessage) {

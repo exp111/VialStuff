@@ -12,42 +12,60 @@
     <Filter Include="Header Files\teamspeak">
       <UniqueIdentifier>{424f4ce9-e47e-43e3-91bc-85bbfec2c680}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\teamlog">
+    <Filter Include="Header Files\hidapi">
       <UniqueIdentifier>{d76dfa87-907d-4936-a5cf-59462dba95d7}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="plugin.c">
+    <ClCompile Include="plugin.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="hidapi\hid.c">
+      <Filter>Header Files\hidapi</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="plugin.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\plugin_definitions.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="include\teamspeak\clientlib_publicdefinitions.h">
+      <Filter>Header Files\teamspeak</Filter>
     </ClInclude>
     <ClInclude Include="include\teamlog\logtypes.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\teamspeak</Filter>
     </ClInclude>
-    <ClInclude Include="include\teamspeak\clientlib_publicdefinitions.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="include\plugin_definitions.h">
+      <Filter>Header Files\teamspeak</Filter>
     </ClInclude>
     <ClInclude Include="include\teamspeak\public_definitions.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\teamspeak</Filter>
     </ClInclude>
     <ClInclude Include="include\teamspeak\public_errors.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\teamspeak</Filter>
     </ClInclude>
     <ClInclude Include="include\teamspeak\public_errors_rare.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\teamspeak</Filter>
     </ClInclude>
     <ClInclude Include="include\teamspeak\public_rare_definitions.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\teamspeak</Filter>
     </ClInclude>
     <ClInclude Include="include\ts3_functions.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\teamspeak</Filter>
+    </ClInclude>
+    <ClInclude Include="hidapi\hidapi_hidclass.h">
+      <Filter>Header Files\hidapi</Filter>
+    </ClInclude>
+    <ClInclude Include="hidapi\hidapi_hidpi.h">
+      <Filter>Header Files\hidapi</Filter>
+    </ClInclude>
+    <ClInclude Include="hidapi\hidapi_hidsdi.h">
+      <Filter>Header Files\hidapi</Filter>
+    </ClInclude>
+    <ClInclude Include="hidapi\hidapi_winapi.h">
+      <Filter>Header Files\hidapi</Filter>
+    </ClInclude>
+    <ClInclude Include="hidapi\hidapi_cfgmgr32.h">
+      <Filter>Header Files\hidapi</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
