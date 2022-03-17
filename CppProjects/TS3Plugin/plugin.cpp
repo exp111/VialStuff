@@ -133,6 +133,43 @@ int hid_send(hid_device* handle, unsigned char* buf)
 	return 0;
 }
 
+static void sendVialSet(int cmd, int prop, int val)
+{
+	unsigned char msg[MSG_SIZE];
+	memset(msg, 0x0, sizeof(msg));
+	//[0] = 0x0 => report id
+	msg[1] = cmd;
+	msg[2] = prop;
+	msg[3] = val;
+	int res = hid_send(device, msg);
+	if (res < 0)
+	{
+		const wchar_t* err = hid_error(device);
+		char buf[255];
+		sprintf_s(buf, "error during sendVialSet: %ls\n", err);
+		ts3Functions.logMessage(buf, LogLevel_DEBUG, PLUGIN_NAME, 0);
+	}
+}
+
+// returns a byte array with a length of MSG_SIZE (32+1)
+static unsigned char* sendVialGet(int cmd, int prop)
+{
+	unsigned char msg[MSG_SIZE];
+	memset(msg, 0x0, sizeof(msg));
+	//[0] = 0x0 => report id
+	msg[1] = cmd;
+	msg[2] = prop;
+	int res = hid_send(device, msg);
+	if (res < 0)
+	{
+		const wchar_t* err = hid_error(device);
+		char buf[255];
+		sprintf_s(buf, "error during sendVialGet: %ls\n", err);
+		ts3Functions.logMessage(buf, LogLevel_DEBUG, PLUGIN_NAME, 0);
+	}
+	return msg;
+}
+
 static void InitVial()
 {
 	// init
@@ -191,41 +228,12 @@ static void InitVial()
 	device = hid_open_path(selected.path);
 
 	// get current effect
-	unsigned char msg[MSG_SIZE]; // 32 + 1 (for the report id)
-	memset(msg, 0x00, sizeof(msg));
-	msg[0] = 0x0; // report id
-	msg[1] = CMD_VIA_LIGHTING_GET_VALUE;
-	msg[2] = QMK_RGBLIGHT_EFFECT;
-	res = hid_send(device, msg);
-	if (res < 0)
-	{
-		const wchar_t* err = hid_error(device);
-		sprintf_s(buf, "error while getting lighting value: %ls\n", err);
-		ts3Functions.logMessage(buf, LogLevel_DEBUG, PLUGIN_NAME, 0);
-	}
+	//unsigned char* msg = sendVialGet(CMD_VIA_LIGHTING_GET_VALUE, QMK_RGBLIGHT_EFFECT);
+	//savedVialEffect = msg[2];
 
-	savedVialEffect = msg[2];
 	const wchar_t* err = hid_error(device);
 	sprintf_s(buf, "saved effect: %i\n", savedVialEffect);
 	ts3Functions.logMessage(buf, LogLevel_DEBUG, PLUGIN_NAME, 0);
-}
-
-static void sendVialSet(int cmd, int prop, int val)
-{
-	unsigned char msg[MSG_SIZE];
-	memset(msg, 0x0, sizeof(msg));
-	//[0] = 0x0 => report id
-	msg[1] = cmd;
-	msg[2] = prop;
-	msg[3] = val;
-	int res = hid_send(device, msg);
-	if (res < 0)
-	{
-		const wchar_t* err = hid_error(device);
-		char buf[255];
-		sprintf_s(buf, "error during sendVialSet: %ls\n", err);
-		ts3Functions.logMessage(buf, LogLevel_DEBUG, PLUGIN_NAME, 0);
-	}
 }
 
 /*
@@ -368,14 +376,25 @@ void ts3plugin_onUpdateClientEvent(uint64 serverConnectionHandlerID, anyID clien
 		return;
 	}
 
+	int outputMuted = 0;
+	ts3Functions.getClientSelfVariableAsInt(serverConnectionHandlerID, CLIENT_OUTPUT_MUTED, &outputMuted);
+	if (result != ERROR_ok)
+	{
+		ts3Functions.printMessageToCurrentTab("getSelfvariable2 fail");
+		return;
+	}
+
 	// change the lighting according to the mute status
-	if (muted)
+	//TODO: make this configurable
+	//TODO: make different cases according to input/output mute
+	if (muted || outputMuted)
 	{
 		sendVialSet(CMD_VIA_LIGHTING_SET_VALUE, QMK_RGBLIGHT_EFFECT, 0);
 	}
 	else
 	{
-		sendVialSet(CMD_VIA_LIGHTING_SET_VALUE, QMK_RGBLIGHT_EFFECT, savedVialEffect);
+		sendVialSet(CMD_VIA_LIGHTING_SET_VALUE, QMK_RGBLIGHT_EFFECT, 1);
+		//sendVialSet(CMD_VIA_LIGHTING_SET_VALUE, QMK_RGBLIGHT_EFFECT, savedVialEffect);
 	}
 }
 
